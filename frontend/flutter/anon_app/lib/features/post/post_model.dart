@@ -1,27 +1,22 @@
-class Post {
+class PostModel {
+  final int id;
   final String content;
-  final DateTime timestamp;
-  final bool isFlagged;
-  final List<String> reasons;
+  final bool flagged;
+  final String? reason;
 
-  Post({
+  PostModel({
+    required this.id,
     required this.content,
-    DateTime? timestamp,
-    this.isFlagged = false,
-    this.reasons = const [],
-  }) : timestamp = timestamp ?? DateTime.now();
+    required this.flagged,
+    this.reason,
+  });
 
-  Map<String, dynamic> toJson() => {
-    'content': content,
-    'timestamp': timestamp.toIso8601String(),
-    'isFlagged': isFlagged,
-    'reasons': reasons,
-  };
-
-  static Post fromJson(Map<String, dynamic> json) => Post(
-    content: json['content'],
-    timestamp: DateTime.parse(json['timestamp']),
-    isFlagged: json['isFlagged'],
-    reasons: List<String>.from(json['reasons']),
-  );
+  factory PostModel.fromJson(Map<String, dynamic> json) {
+    return PostModel(
+      id: json['id'],
+      content: json['content'],
+      flagged: json['flagged'] ?? false,
+      reason: json['reason'],
+    );
+  }
 }

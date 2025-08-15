@@ -12,13 +12,35 @@ class CreatePage extends StatefulWidget {
 
 class _CreatePageState extends State<CreatePage> {
   final TextEditingController inputController = TextEditingController();
+  bool isSubmitting = false;
 
-  void submit() {
-    widget.controller.addPost(inputController.text);
-    inputController.clear();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('✅ Post submitted.')));
+  Future<void> submit() async {
+    if (inputController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ Please enter something')),
+      );
+      return;
+    }
+
+    setState(() {
+      isSubmitting = true;
+    });
+
+    try {
+      await widget.controller.addPost(inputController.text);
+      inputController.clear();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('✅ Post submitted.')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('❌ Failed to submit: $e')));
+    } finally {
+      setState(() {
+        isSubmitting = false;
+      });
+    }
   }
 
   @override
@@ -38,7 +60,10 @@ class _CreatePageState extends State<CreatePage> {
             ),
           ),
         ),
-        ElevatedButton(onPressed: submit, child: const Text("Post")),
+        ElevatedButton(
+          onPressed: isSubmitting ? null : submit,
+          child: Text(isSubmitting ? "Posting..." : "Post"),
+        ),
       ],
     );
   }

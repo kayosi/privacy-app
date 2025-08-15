@@ -13,17 +13,53 @@ class PostScreen extends StatefulWidget {
 class _PostScreenState extends State<PostScreen> {
   final PostController controller = PostController();
   final TextEditingController inputController = TextEditingController();
+  bool isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    controller.loadPosts().then((_) => setState(() {}));
+    _loadPosts();
   }
 
-  void submit() {
-    controller.addPost(inputController.text);
-    inputController.clear();
-    setState(() {});
+  Future<void> _loadPosts() async {
+    try {
+      await controller.loadPosts();
+      setState(() {});
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("❌ Failed to load posts: $e")));
+    }
+  }
+
+  Future<void> submit() async {
+    if (inputController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⚠️ Please enter something")),
+      );
+      return;
+    }
+
+    setState(() {
+      isSubmitting = true;
+    });
+
+    try {
+      await controller.addPost(inputController.text.trim());
+      inputController.clear();
+      setState(() {}); // refresh feed instantly
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("✅ Post submitted.")));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("❌ Failed to submit: $e")));
+    } finally {
+      setState(() {
+        isSubmitting = false;
+      });
+    }
   }
 
   @override
@@ -37,21 +73,27 @@ class _PostScreenState extends State<PostScreen> {
               padding: const EdgeInsets.all(12),
               child: TextField(
                 controller: inputController,
-                style: TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: "Type your truth...",
-                  hintStyle: TextStyle(color: Colors.white54),
+                  hintStyle: const TextStyle(color: Colors.white54),
                   filled: true,
                   fillColor: Colors.grey[850],
                 ),
               ),
             ),
-            ElevatedButton(onPressed: submit, child: const Text("Post")),
+            ElevatedButton(
+              onPressed: isSubmitting ? null : submit,
+              child: Text(isSubmitting ? "Posting..." : "Post"),
+            ),
             Expanded(
-              child: ListView(
-                children: controller.posts
-                    .map((post) => PostCard(post: post))
-                    .toList(),
+              child: RefreshIndicator(
+                onRefresh: _loadPosts,
+                child: ListView(
+                  children: controller.posts
+                      .map((post) => PostCard(post: post))
+                      .toList(),
+                ),
               ),
             ),
           ],

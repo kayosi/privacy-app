@@ -1,35 +1,34 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'post_model.dart';
 
 class PostController {
-  final List<Post> _posts = [];
-  final List<String> _flaggedWords = ['kill', 'suicide', 'bomb', 'abuse'];
-
-  List<Post> get posts => _posts;
+  List<PostModel> posts = [];
+  final String baseUrl =
+      "http://192.168.100.49:8080"; // Android emulator loopback
+  // For real phone testing via USB, replace with your PC's LAN IP (e.g., http://192.168.1.5:8080)
 
   Future<void> loadPosts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonList = prefs.getStringList('posts') ?? [];
-    _posts.clear();
-    _posts.addAll(jsonList.map((j) => Post.fromJson(jsonDecode(j))));
+    final response = await http.get(Uri.parse("$baseUrl/posts"));
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      posts = data.map((item) => PostModel.fromJson(item)).toList();
+    } else {
+      throw Exception("Failed to load posts");
+    }
   }
 
-  Future<void> savePosts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonList = _posts.map((p) => jsonEncode(p.toJson())).toList();
-    await prefs.setStringList('posts', jsonList);
-  }
-
-  void addPost(String content) {
-    if (content.trim().isEmpty) return;
-
-    final lower = content.toLowerCase();
-    final reasons = _flaggedWords.where((w) => lower.contains(w)).toList();
-    final flagged = reasons.isNotEmpty;
-
-    final post = Post(content: content, isFlagged: flagged, reasons: reasons);
-    _posts.insert(0, post);
-    savePosts(); // save after insert
+  Future<void> addPost(String content) async {
+    final response = await http.post(
+      Uri.parse("$baseUrl/posts"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"content": content}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      posts.add(PostModel.fromJson(data));
+    } else {
+      throw Exception("Failed to create post");
+    }
   }
 }

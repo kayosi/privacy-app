@@ -21,10 +21,16 @@ class _FeedPageState extends State<FeedPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      children: widget.controller.posts
-          .map((post) => PostCard(post: post))
-          .toList(),
+    return RefreshIndicator(
+      onRefresh: () async {
+        await widget.controller.loadPosts();
+        setState(() {});
+      },
+      child: ListView(
+        children: widget.controller.posts
+            .map((post) => PostCard(post: post))
+            .toList(),
+      ),
     );
   }
 }
