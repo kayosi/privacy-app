@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import '../post/post_card.dart';
 import '../post/post_controller.dart';
 import '../post/post_model.dart';
+import '../auth/auth_controller.dart';
 
 class PostScreen extends StatefulWidget {
-  const PostScreen({super.key});
+  final PostController controller;
+  final AuthController auth;
+
+  const PostScreen({super.key, required this.controller, required this.auth});
 
   @override
   State<PostScreen> createState() => _PostScreenState();
 }
 
 class _PostScreenState extends State<PostScreen> {
-  final PostController controller = PostController();
   final TextEditingController inputController = TextEditingController();
   bool isSubmitting = false;
 
@@ -23,12 +26,14 @@ class _PostScreenState extends State<PostScreen> {
 
   Future<void> _loadPosts() async {
     try {
-      await controller.loadPosts();
+      await widget.controller.loadPosts();
       setState(() {});
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("❌ Failed to load posts: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("❌ Failed to load posts: $e")));
+      }
     }
   }
 
@@ -40,25 +45,24 @@ class _PostScreenState extends State<PostScreen> {
       return;
     }
 
-    setState(() {
-      isSubmitting = true;
-    });
+    setState(() => isSubmitting = true);
 
     try {
-      await controller.addPost(inputController.text.trim());
+      await widget.controller.addPost(inputController.text.trim());
       inputController.clear();
-      setState(() {}); // refresh feed instantly
+      await widget.controller.loadPosts();
+      setState(() {});
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("✅ Post submitted.")));
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("❌ Failed to submit: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("❌ Failed to submit: $e")));
+      }
     } finally {
-      setState(() {
-        isSubmitting = false;
-      });
+      if (mounted) setState(() => isSubmitting = false);
     }
   }
 
@@ -90,7 +94,7 @@ class _PostScreenState extends State<PostScreen> {
               child: RefreshIndicator(
                 onRefresh: _loadPosts,
                 child: ListView(
-                  children: controller.posts
+                  children: widget.controller.posts
                       .map((post) => PostCard(post: post))
                       .toList(),
                 ),

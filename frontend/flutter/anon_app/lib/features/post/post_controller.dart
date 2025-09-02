@@ -1,12 +1,17 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../auth/auth_controller.dart';
 import 'post_model.dart';
 
 class PostController {
   List<PostModel> posts = [];
-  final String baseUrl = "http://192.168.100.52:8080"; // ⚡ your LAN IP
   final AuthController auth;
+
+  // Same dynamic base URL logic as AuthController
+  final String baseUrl = kIsWeb
+      ? "http://localhost:8080"
+      : "http://192.168.100.52:8080"; // <-- set LAN IP
 
   PostController(this.auth);
 
@@ -22,8 +27,6 @@ class PostController {
 
   Future<void> addPost(String content, {bool forceAnon = false}) async {
     final headers = {"Content-Type": "application/json"};
-
-    // ✅ Only attach token if not forcing Anon and user is logged in
     if (!forceAnon && auth.token != null) {
       headers["Authorization"] = "Bearer ${auth.token!}";
     }

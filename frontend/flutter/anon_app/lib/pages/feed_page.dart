@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../features/post/post_controller.dart';
+import '../features/post/post_model.dart';
 
 class FeedPage extends StatefulWidget {
   final PostController controller;
@@ -10,56 +11,59 @@ class FeedPage extends StatefulWidget {
 }
 
 class _FeedPageState extends State<FeedPage> {
+  bool _loading = true;
+
   @override
   void initState() {
     super.initState();
-    widget.controller.loadPosts().then((_) {
-      setState(() {});
-    });
+    widget.controller
+        .loadPosts()
+        .then((_) {
+          if (mounted) setState(() => _loading = false);
+        })
+        .catchError((_) {
+          if (mounted) setState(() => _loading = false);
+        });
+  }
+
+  Future<void> _refresh() async {
+    await widget.controller.loadPosts();
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    final posts = widget.controller.posts;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text("Feed")),
-      body: posts.isEmpty
-          ? const Center(child: Text("No posts yet"))
-          : ListView.builder(
-              itemCount: posts.length,
-              itemBuilder: (context, index) {
-                final post = posts[index];
-                return Card(
-                  margin: const EdgeInsets.all(8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          post.content,
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "by ${post.user}",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        if (post.flagged)
-                          Text(
-                            "⚠️ Flagged: ${post.reason}",
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final List<PostModel> posts = widget.controller.posts;
+    if (posts.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          children: const [
+            SizedBox(height: 200),
+            Center(child: Text("No posts yet.")),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView.builder(
+        itemCount: posts.length,
+        itemBuilder: (_, i) {
+          final p = posts[i];
+          return ListTile(
+            title: Text(p.content),
+            subtitle: Text(
+              p.flagged
+                  ? "⚠️ Flagged: ${p.reason ?? ''}"
+                  : (p.author != null ? "by ${p.author}" : "Anonymous"),
             ),
+          );
+        },
+      ),
     );
   }
 }

@@ -17,10 +17,10 @@ class PostCard extends StatelessWidget {
             Text(post.content, style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 8),
             Text(
-              "Posted by: ${post.user}",
+              "Posted by: ${post.author}",
               style: TextStyle(
                 fontSize: 12,
-                color: post.user == "anon" ? Colors.grey : Colors.green,
+                color: post.author == "anon" ? Colors.grey : Colors.green,
               ),
             ),
             if (post.flagged)

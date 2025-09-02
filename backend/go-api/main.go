@@ -10,12 +10,11 @@ import (
 )
 
 type Post struct {
-	ID      int    `json:"id"`
-	Content string `json:"content"`
-	Flagged bool   `json:"flagged"`
-	Reason  string `json:"reason,omitempty"`
-	Author  string `json:"author"`
-	User    string `json:"user"`
+	ID      int     `json:"id"`
+	Content string  `json:"content"`
+	Flagged bool    `json:"flagged"`
+	Reason  string  `json:"reason,omitempty"`
+	Author  *string `json:"author,omitempty"` // nil => Anonymous
 }
 
 type User struct {
@@ -34,41 +33,36 @@ func enableCORS(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 }
 
+func bearerUsername(r *http.Request) (string, bool) {
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		return "", false
+	}
+	parts := strings.Split(auth, " ")
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return "", false
+	}
+	tokenStr := parts[1]
+	tok, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+	if err != nil || !tok.Valid {
+		return "", false
+	}
+	if claims, ok := tok.Claims.(jwt.MapClaims); ok {
+		if u, ok := claims["username"].(string); ok && u != "" {
+			return u, true
+		}
+	}
+	return "", false
+}
+
 func getPosts(w http.ResponseWriter, r *http.Request) {
 	enableCORS(w)
 	if r.Method == http.MethodOptions {
 		return
 	}
-	log.Println("GET /posts")
 	json.NewEncoder(w).Encode(posts)
-}
-
-// ✅ helper to extract username from token
-func getUsernameFromToken(r *http.Request) (string, error) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return "Anon", nil // no token → anon
-	}
-
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return "Anon", nil
-	}
-
-	tokenStr := parts[1]
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-	if err != nil || !token.Valid {
-		return "Anon", nil
-	}
-
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		if username, ok := claims["username"].(string); ok {
-			return username, nil
-		}
-	}
-	return "Anon", nil
 }
 
 func addPost(w http.ResponseWriter, r *http.Request) {
@@ -83,31 +77,18 @@ func addPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ Try to parse JWT (optional)
-	authHeader := r.Header.Get("Authorization")
-	user := "anon"
-	if authHeader != "" {
-		parts := strings.Split(authHeader, " ")
-		if len(parts) == 2 && parts[0] == "Bearer" {
-			tokenStr := parts[1]
-			token, _ := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-				return jwtKey, nil
-			})
-			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-				user = claims["username"].(string)
-			}
-		}
+	// Optional author if token present
+	if u, ok := bearerUsername(r); ok {
+		post.Author = &u
 	}
 
-	post.User = user
-
-	// 🔍 Simple moderation
-	dangerousWords := []string{"kill", "bomb", "attack", "murder"}
-	contentLower := strings.ToLower(post.Content)
-	for _, word := range dangerousWords {
-		if strings.Contains(contentLower, word) {
+	// Simple moderation
+	dangerous := []string{"kill", "bomb", "attack", "murder"}
+	lc := strings.ToLower(post.Content)
+	for _, wv := range dangerous {
+		if strings.Contains(lc, wv) {
 			post.Flagged = true
-			post.Reason = "Contains prohibited word: " + word
+			post.Reason = "Contains prohibited word: " + wv
 			break
 		}
 	}
@@ -115,7 +96,7 @@ func addPost(w http.ResponseWriter, r *http.Request) {
 	post.ID = nextID
 	nextID++
 	posts = append(posts, post)
-	log.Printf("POST /posts - New post by %s: %+v\n", user, post)
+	log.Printf("POST /posts -> %+v\n", post)
 	json.NewEncoder(w).Encode(post)
 }
 
@@ -124,19 +105,16 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		return
 	}
-
-	var user User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+	var u User
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	if _, exists := users[user.Username]; exists {
+	if _, exists := users[u.Username]; exists {
 		http.Error(w, "User already exists", http.StatusBadRequest)
 		return
 	}
-
-	users[user.Username] = user.Password
+	users[u.Username] = u.Password
 	json.NewEncoder(w).Encode(map[string]string{"message": "User registered"})
 }
 
@@ -145,30 +123,31 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		return
 	}
-
-	var user User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+	var u User
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	storedPass, exists := users[user.Username]
-	if !exists || storedPass != user.Password {
+	pass, ok := users[u.Username]
+	if !ok || pass != u.Password {
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"username": user.Username,
+		"username": u.Username,
 	})
-	tokenString, err := token.SignedString(jwtKey)
+	tokenStr, err := token.SignedString(jwtKey)
 	if err != nil {
 		http.Error(w, "Error creating token", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("LOGIN success for user=%s token=%s\n", user.Username, tokenString) // ✅ Debug log
-	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
+	log.Printf("LOGIN ok user=%s", u.Username)
+	json.NewEncoder(w).Encode(map[string]string{
+		"token":    tokenStr,
+		"username": u.Username,
+	})
 }
 
 func main() {
@@ -179,7 +158,8 @@ func main() {
 		case http.MethodGet:
 			getPosts(w, r)
 		case http.MethodPost:
-			addPost(w, r) // ✅ now allows anon OR logged-in
+			// Anonymous allowed (no middleware) — author set if token present
+			addPost(w, r)
 		case http.MethodOptions:
 			enableCORS(w)
 		default:

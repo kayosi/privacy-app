@@ -8,50 +8,43 @@ class AccountPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loggedIn = authController.token != null;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text("Account")),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            loggedIn
-                ? const Text(
-                    "✅ You are logged in",
-                    style: TextStyle(fontSize: 18),
-                  )
-                : const Text(
-                    "👤 You are browsing as Anonymous",
-                    style: TextStyle(fontSize: 18),
-                  ),
-            const SizedBox(height: 20),
-            if (!loggedIn)
-              Column(
+    final loggedIn = authController.isLoggedIn;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: loggedIn
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  Text("Logged in as: ${authController.username}"),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      authController.logout();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Logged out")),
+                      );
+                      context.go('/feed');
+                    },
+                    child: const Text("Logout"),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text("You are not logged in."),
+                  const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: () => context.go('/login'),
                     child: const Text("Login"),
                   ),
                   TextButton(
                     onPressed: () => context.go('/register'),
-                    child: const Text("Create Account"),
+                    child: const Text("Create account"),
                   ),
                 ],
-              )
-            else
-              ElevatedButton(
-                onPressed: () {
-                  authController.token = null; // clear token
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text("Logged out")));
-                  context.go('/feed');
-                },
-                child: const Text("Logout"),
               ),
-          ],
-        ),
       ),
     );
   }

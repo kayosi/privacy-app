@@ -25,25 +25,53 @@ class AnonApp extends StatelessWidget {
     final PostController posts = PostController(auth);
 
     final GoRouter router = GoRouter(
-      initialLocation: '/feed', // ✅ Feed is now landing page
+      initialLocation: '/feed', // ✅ Feed is landing page
       routes: [
         GoRoute(
           path: '/feed',
-          builder: (context, state) =>
-              AppShell(child: FeedPage(controller: posts)),
+          builder: (context, state) => AppShell(
+            child: FeedPage(controller: posts),
+            auth: auth,
+          ),
         ),
         GoRoute(
+          path: '/login',
+          builder: (context, state) => AppShell(
+            child: LoginPage(authController: auth),
+            auth: auth,
+          ),
+        ),
+        GoRoute(
+          path: '/register',
+          builder: (context, state) => AppShell(
+            child: RegisterPage(authController: auth),
+            auth: auth,
+          ),
+        ),
+        GoRoute(
+          path: '/account',
+          builder: (context, state) => AppShell(
+            child: AccountPage(authController: auth),
+            auth: auth,
+          ),
+        ),
+
+        GoRoute(
           path: '/create',
-          builder: (context, state) =>
-              AppShell(child: CreatePage(controller: posts)),
+          builder: (context, state) => AppShell(
+            child: CreatePage(controller: posts),
+            auth: auth,
+          ),
         ),
         GoRoute(
           path: '/mod',
-          builder: (context, state) => const AppShell(child: ModPage()),
+          builder: (context, state) =>
+              AppShell(child: const ModPage(), auth: auth),
         ),
         GoRoute(
           path: '/about',
-          builder: (context, state) => const AppShell(child: AboutPage()),
+          builder: (context, state) =>
+              AppShell(child: const AboutPage(), auth: auth),
         ),
         GoRoute(
           path: '/login',

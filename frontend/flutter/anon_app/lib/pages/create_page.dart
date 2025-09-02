@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../features/post/post_controller.dart';
 
 class CreatePage extends StatefulWidget {
@@ -10,77 +11,52 @@ class CreatePage extends StatefulWidget {
 }
 
 class _CreatePageState extends State<CreatePage> {
-  final TextEditingController inputCtrl = TextEditingController();
-  bool postAsAnon = true; // ✅ default to Anon
-  String? errorMsg;
+  final TextEditingController _text = TextEditingController();
+  bool _forceAnon = false;
+  bool _submitting = false;
 
-  void handleSubmit() async {
+  Future<void> _submit() async {
+    if (_text.text.trim().isEmpty) return;
+    setState(() => _submitting = true);
     try {
-      await widget.controller.addPost(
-        inputCtrl.text,
-        forceAnon: postAsAnon, // ✅ pass toggle choice
-      );
-      inputCtrl.clear();
-      setState(() {
-        errorMsg = null;
-      });
+      await widget.controller.addPost(_text.text.trim(), forceAnon: _forceAnon);
+      await widget.controller.loadPosts(); // ensure feed is fresh
+      if (mounted) context.go('/feed');
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("Post submitted!")));
-    } catch (e) {
-      setState(() {
-        errorMsg = e.toString();
-      });
+      ).showSnackBar(SnackBar(content: Text('Failed to post: $e')));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Create Post")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: inputCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: "Type your truth...",
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ✅ Toggle for Anon / Logged-in
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text("Post as: "),
-                Switch(
-                  value: postAsAnon,
-                  onChanged: (val) {
-                    setState(() => postAsAnon = val);
-                  },
-                ),
-                Text(postAsAnon ? "Anon" : "Logged-in User"),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-            ElevatedButton(onPressed: handleSubmit, child: const Text("Post")),
-
-            if (errorMsg != null)
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  errorMsg!,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-          ],
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        TextField(
+          controller: _text,
+          maxLines: 6,
+          decoration: const InputDecoration(
+            hintText: "Type your truth…",
+            border: OutlineInputBorder(),
+          ),
         ),
-      ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          title: const Text("Post as Anonymous"),
+          value: _forceAnon,
+          onChanged: (v) => setState(() => _forceAnon = v),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton(
+          onPressed: _submitting ? null : _submit,
+          child: Text(_submitting ? "Posting…" : "Post"),
+        ),
+      ],
     );
   }
 }
